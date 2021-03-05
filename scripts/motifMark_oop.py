@@ -36,14 +36,23 @@ args = get_args()
 
 class Gene:
 
+    '''
+    Gene object contains length of the full gene, drawGene draws a thin line based on the gene length
+    '''
+
     __slots__ = ['start', 'length', 'width']
 
     def __init__(self, record):
-        self.start = 0.01
+        self.start = 0.01 # margin
         self.length = len(record[1])
-        self.width = 0.008
+        self.width = 0.008 # intron width
 
     def drawGene(self, context, y_coord, surface_width):
+
+        '''
+        Draws gene length on surface context, located by y_coord and scaled to the surface width
+        '''
+
         context.set_source_rgb(0,0,0)
         context.set_line_width(self.width)
         context.move_to(self.start, y_coord)
@@ -51,6 +60,12 @@ class Gene:
         context.stroke()
 
 class Exon:
+
+    '''
+    Exon object contains all exons for a gene, drawExons draws a thick line based on coords of each exon
+    Exon class finds all exons because regex search tool makes it easier than making an object for each
+    individual exon
+    '''
 
     __slots__ = ['coordinates', 'width']
 
@@ -60,6 +75,11 @@ class Exon:
         self.width = 0.05
 
     def findExons(self, record):
+
+        '''
+        Finds all capitalized segments in sequence 
+        '''
+
         exon_matches = re.finditer("[A-Z]+", record[1])
         # extracting coordinates (first char index: last char index) from re.iter objects
         for i in exon_matches:
@@ -67,6 +87,10 @@ class Exon:
         return self
 
     def drawExons(self, context, y_coord, surface_width):
+
+        '''
+        Draws all exons on one gene, scaled to width of surface
+        '''
         context.set_line_width(self.width)
         for ex in self.coordinates:
             start, stop = ex[0], ex[1] # exon coordinates, to be scaled by image width
@@ -98,6 +122,10 @@ class Motif:
 
     def expandMotif(self):
 
+        '''
+        Generates a Regex motif based on original motif and IUPAC dictionary
+        '''
+
             # RNA/DNA indifferent dictionary for IUPAC degenerate bases
         iupac_degens = { 
             "w" : "[atuATU]", "b" : "[cgtuCGTU]", "r" : "[agAG]", "t" : "[tuTU]",
@@ -112,18 +140,25 @@ class Motif:
         return self
 
     def locateMotif(self, record):
-            seq = record[1]
-            counter = 0
-            for nuc in range(len(seq)): # iterates through each base in seq
-                # prevent indexing past length of seq
-                if (len(seq) - counter) > (self.length -1): 
-                    if re.fullmatch(self.reMotif, seq[nuc:(nuc+self.length)]):
-                        # (start pos, stop pos)
-                        self.coords.append((nuc,(nuc+self.length)))
-                counter += 1
-            return self
+        '''
+        Finds all instances of one motif object in a sequence
+        '''
+        seq = record[1]
+        counter = 0
+        for nuc in range(len(seq)): # iterates through each base in seq
+            # prevent indexing past length of seq
+            if (len(seq) - counter) > (self.length -1): 
+                if re.fullmatch(self.reMotif, seq[nuc:(nuc+self.length)]):
+                    # (start pos, stop pos)
+                    self.coords.append((nuc,(nuc+self.length)))
+            counter += 1
+        return self
 
     def drawMotif(self, context, y_coord, surface_width):
+
+        '''
+        Draws all instances of motif on gene
+        '''
         context.set_source_rgba(self.color[0], self.color[1], self.color[2], 0.7)
         # places motifs on gene same way as exons
         for coord in self.coords:
@@ -142,11 +177,19 @@ class FastaHeader:
         self.parseHeader() # calls function to update self.text
 
     def parseHeader(self):
+
+        '''
+        Gets rid of fasta carrot and unnecessary header info
+        '''
         longName = re.split(">", self.text)[1]
         self.text = re.split(" ", longName)[0]
         return self
 
     def drawHeader(self, context, space):
+
+        '''
+        Writes gene label slightly offset up from gene drawing
+        '''
         context.set_source_rgb(0,0,0)
         context.move_to(self.start, space - 0.1)
         context.select_font_face('Calibri')
@@ -161,6 +204,11 @@ class GeneGroup:
                 'motifs', 'header', 'motifList']
 
     def __init__(self, record, record_count, motif_list):
+
+        '''
+        defines instance of class GeneGroup, some attributes dependent on other classes
+        Dependencies: FastaHeader, Gene, Exon, Motif
+        '''
         self.record = record
         self.rank = record_count
         self.header = FastaHeader(self.record)
@@ -171,6 +219,10 @@ class GeneGroup:
         self.callMotifs()
 
     def callMotifs(self):
+
+        '''
+        Calling Motif class locateMotif method for each motif in motif list
+        '''
         num = 0
         for i in self.motifList:
             temp_motif = Motif(i, num)
@@ -180,11 +232,15 @@ class GeneGroup:
         return self
 
     def draw(self, context, spacer, width):
+
+        '''
+        Draw everything
+        '''
         surface_space = self.rank * spacer
         self.header.drawHeader(context, surface_space)
         self.gene.drawGene(context, surface_space, width)
         self.exon.drawExons(context, surface_space, width)
-        jitter = 0
+        jitter = 0 # offset for legend lines
         for motif in self.motifs:
             motif.drawMotif(context, surface_space, width)
             # putting legend generator here for now, will functionalize later
